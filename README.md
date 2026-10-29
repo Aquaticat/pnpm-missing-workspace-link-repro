@@ -1,6 +1,6 @@
 # pnpm repeat install leaves a missing `workspace:` link missing
 
-Minimal reproduction for pnpm 12.16.1:
+Minimal reproduction for pnpm 12.16.1 and 11.28.9 (pnpm 10.34.9 is not affected):
 after a declared `workspace:` dependency's link is removed from `node_modules`,
 a repeat `pnpm install` prints `Already up to date`, exits 0, and does not recreate the link.
 `pnpm install --force` does.
@@ -23,17 +23,22 @@ ls app/node_modules/lib
 ## Run it on GitHub Actions
 
 [`.github/workflows/reproduce.yml`](.github/workflows/reproduce.yml) runs the same steps on a clean runner.
-It installs exactly pnpm 12.16.1 from its release and checks the archive against a pinned SHA-256 first.
+It runs as a matrix of pnpm releases, each installed from its GitHub release and checked against a pinned SHA-256 first:
+12.16.1, 12.16.1 with no Node.js on `PATH`, 11.28.9 and 10.34.9.
 Start it from the Actions tab (`workflow_dispatch`) or push a change to the workflow or the workspace files.
 
-A red run means the bug reproduced:
+A red job means the bug reproduced:
 the step named "Expected" fails because the repeat install did not recreate the removed link.
-A green run means pnpm recreated it.
+A green job means pnpm recreated it.
 
-First run, [40909405945](https://github.com/Aquaticat/pnpm-missing-workspace-link-repro/actions/runs/40909405945):
-every step passed except "Expected", which printed `ls: cannot access 'app/node_modules/lib': No such file or directory`.
-The repeat install before it printed `Already up to date` and exited 0,
-and the `--force` step after it recreated the link.
+Run [40911641893](https://github.com/Aquaticat/pnpm-missing-workspace-link-repro/actions/runs/40911641893) (2026-10-29):
+
+- 12.16.1: "Expected" fails with `ls: cannot access 'app/node_modules/lib': No such file or directory`.
+  The repeat install before it printed `Already up to date` and exited 0,
+  and the `--force` step after it recreated the link.
+- 12.16.1 with no Node.js on `PATH`: the same failure, so Node.js is not involved.
+- 11.28.9: the same failure.
+- 10.34.9: the job succeeds, so pnpm 10 recreates the link.
 
 ## Expected
 
