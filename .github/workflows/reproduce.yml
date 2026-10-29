@@ -4,6 +4,12 @@ name: reproduce
 
 on:
   push:
+    paths:
+      - .github/workflows/reproduce.yml
+      - pnpm-workspace.yaml
+      - package.json
+      - app/**
+      - lib/**
   workflow_dispatch:
 
 permissions:

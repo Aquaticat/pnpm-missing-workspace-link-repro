@@ -20,6 +20,21 @@ pnpm install --offline --force
 ls app/node_modules/lib
 ```
 
+## Run it on GitHub Actions
+
+[`.github/workflows/reproduce.yml`](.github/workflows/reproduce.yml) runs the same steps on a clean runner.
+It installs exactly pnpm 12.16.1 from its release and checks the archive against a pinned SHA-256 first.
+Start it from the Actions tab (`workflow_dispatch`) or push a change to the workflow or the workspace files.
+
+A red run means the bug reproduced:
+the step named "Expected" fails because the repeat install did not recreate the removed link.
+A green run means pnpm recreated it.
+
+First run, [40909405945](https://github.com/Aquaticat/pnpm-missing-workspace-link-repro/actions/runs/40909405945):
+every step passed except "Expected", which printed `ls: cannot access 'app/node_modules/lib': No such file or directory`.
+The repeat install before it printed `Already up to date` and exited 0,
+and the `--force` step after it recreated the link.
+
 ## Expected
 
 The second `pnpm install --offline` recreates `app/node_modules/lib`.
@@ -51,4 +66,4 @@ and [lines 205 to 207](https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173
 ---
 
 Written by an agent (Claude Code, claude-sonnet-5-5).
-The steps were run once by the agent as written above; no human has re-run them yet.
+The steps were run by the agent locally and in the Actions run above; no human has re-run them yet.
