@@ -1,5 +1,6 @@
-# A red run means the bug reproduced: the "Expected" step fails because the repeat install did not recreate the
-# link that "Step 2" removed. A green run means pnpm recreated it.
+# A red job means the bug reproduced: the "Expected" step fails because the repeat install did not recreate the
+# link that "Step 2" removed. A green job means pnpm recreated it.
+# One job per maintained pnpm line (12, 11, 10), plus a pnpm 12 job with no Node.js on PATH.
 name: reproduce
 
 on:
@@ -17,22 +18,66 @@ permissions:
 
 jobs:
   reproduce:
+    name: pnpm ${{ matrix.version }}${{ matrix.without-node && ' without Node.js on PATH' || '' }}
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: 12.16.1
+            url: https://github.com/pnpm/pnpm/releases/download/v12.16.1/pnpm-linux-x64.tar.gz
+            sha256: 565ff81174a14f6f7bd5d84c1b17e51031a80230d370a1fe24be5d16bd02a825
+            layout: tarball
+            without-node: false
+          - version: 12.16.1
+            url: https://github.com/pnpm/pnpm/releases/download/v12.16.1/pnpm-linux-x64.tar.gz
+            sha256: 565ff81174a14f6f7bd5d84c1b17e51031a80230d370a1fe24be5d16bd02a825
+            layout: tarball
+            without-node: true
+          - version: 11.28.9
+            url: https://github.com/pnpm/pnpm/releases/download/v11.28.9/pnpm-linux-x64.tar.gz
+            sha256: 44588952c6e0e2c25f5b3363c5736d7a176ce8dc6200ae8179bd688e60a212a7
+            layout: tarball
+            without-node: false
+          - version: 10.34.9
+            url: https://github.com/pnpm/pnpm/releases/download/v10.34.9/pnpm-linux-x64
+            sha256: 3ec79240658f0ee4e8977f21ee2c598c7a8b8d06b86dc564f2ec6cb099fd8ac2
+            layout: executable
+            without-node: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Install pnpm 12.16.1 from its release, checked against a pinned checksum
+      - name: Install pnpm ${{ matrix.version }} from its release, checked against a pinned checksum
+        env:
+          URL: ${{ matrix.url }}
+          SHA256: ${{ matrix.sha256 }}
+          LAYOUT: ${{ matrix.layout }}
         run: |
-          curl --fail --location --silent --show-error --output pnpm.tar.gz https://github.com/pnpm/pnpm/releases/download/v12.16.1/pnpm-linux-x64.tar.gz
-          echo "565ff81174a14f6f7bd5d84c1b17e51031a80230d370a1fe24be5d16bd02a825  pnpm.tar.gz" | sha256sum --check
           mkdir "$RUNNER_TEMP/pnpm"
-          tar --extract --gzip --file pnpm.tar.gz --directory "$RUNNER_TEMP/pnpm"
-          echo "$RUNNER_TEMP/pnpm" >> "$GITHUB_PATH"
+          curl --fail --location --silent --show-error --output "$RUNNER_TEMP/download" "$URL"
+          echo "$SHA256  $RUNNER_TEMP/download" | sha256sum --check
+          if [ "$LAYOUT" = tarball ]; then
+            tar --extract --gzip --file "$RUNNER_TEMP/download" --directory "$RUNNER_TEMP/pnpm"
+          else
+            install --mode 0755 "$RUNNER_TEMP/download" "$RUNNER_TEMP/pnpm/pnpm"
+          fi
 
-      - name: Version
-        run: pnpm --version
+      - name: Choose the PATH of the reproduction
+        env:
+          WITHOUT_NODE: ${{ matrix.without-node }}
+        run: |
+          if [ "$WITHOUT_NODE" = true ]; then
+            echo "PATH=$RUNNER_TEMP/pnpm:/usr/bin:/bin" >> "$GITHUB_ENV"
+          else
+            echo "PATH=$RUNNER_TEMP/pnpm:$PATH" >> "$GITHUB_ENV"
+          fi
+
+      - name: Version and Node.js on PATH
+        run: |
+          pnpm --version
+          command -v node || echo "no node on PATH"
 
       - name: Step 1, the first install creates the link
         run: |
