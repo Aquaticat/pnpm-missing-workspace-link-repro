@@ -1,0 +1,49 @@
+# A red run means the bug reproduced: the "Expected" step fails because the repeat install did not recreate the
+# link that "Step 2" removed. A green run means pnpm recreated it.
+name: reproduce
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm 12.16.1 from its release, checked against a pinned checksum
+        run: |
+          curl --fail --location --silent --show-error --output pnpm.tar.gz https://github.com/pnpm/pnpm/releases/download/v12.16.1/pnpm-linux-x64.tar.gz
+          echo "565ff81174a14f6f7bd5d84c1b17e51031a80230d370a1fe24be5d16bd02a825  pnpm.tar.gz" | sha256sum --check
+          mkdir "$RUNNER_TEMP/pnpm"
+          tar --extract --gzip --file pnpm.tar.gz --directory "$RUNNER_TEMP/pnpm"
+          echo "$RUNNER_TEMP/pnpm" >> "$GITHUB_PATH"
+
+      - name: Version
+        run: pnpm --version
+
+      - name: Step 1, the first install creates the link
+        run: |
+          pnpm install --offline
+          ls -l app/node_modules/lib
+
+      - name: Step 2, remove the link
+        run: rm app/node_modules/lib
+
+      - name: Step 3, repeat the install
+        run: pnpm install --offline
+
+      - name: Expected, the repeat install recreated the link
+        run: ls -l app/node_modules/lib
+
+      - name: Step 4, --force recreates the link
+        if: always()
+        run: |
+          pnpm install --offline --force
+          ls -l app/node_modules/lib
